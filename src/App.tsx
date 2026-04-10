@@ -98,9 +98,11 @@ export default function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [status, setStatus] = useState('Ready');
 
+  const isDesktop = typeof window !== 'undefined' && !!window.api;
+
   useEffect(() => {
     if (!window.api) {
-      setStatus('Electron bridge missing');
+      setStatus('Web demo mode');
     }
   }, []);
 
@@ -260,13 +262,13 @@ jobs:
   }
 
   async function handleOpen() {
+    if (!isDesktop) {
+      setStatus('Open is only available in the desktop app');
+      return;
+    }
+
     try {
       setStatus('Opening...');
-
-      if (!window.api?.openFile) {
-        setStatus('window.api.openFile missing');
-        return;
-      }
 
       const result = await window.api.openFile();
 
@@ -290,12 +292,12 @@ jobs:
   }
 
   async function handleSave() {
-    try {
-      if (!window.api?.saveFile || !window.api?.saveFileAs) {
-        setStatus('window.api save methods missing');
-        return;
-      }
+    if (!isDesktop) {
+      setStatus('Save is only available in the desktop app');
+      return;
+    }
 
+    try {
       if (!filePath) {
         const result = await window.api.saveFileAs(content);
 
@@ -339,12 +341,23 @@ jobs:
           <button onClick={() => switchMode('markdown')}>Markdown</button>
           <button onClick={() => switchMode('yaml')}>YAML</button>
           <button onClick={handleNew}>New</button>
-          <button onClick={handleOpen}>Open</button>
-          <button onClick={handleSave}>Save</button>
+          <button onClick={handleOpen} disabled={!isDesktop}>
+            Open
+          </button>
+          <button onClick={handleSave} disabled={!isDesktop}>
+            Save
+          </button>
         </div>
       </header>
 
-      <div className="statusbar">{status}</div>
+      <div className="statusbar">
+        {status}
+        {!isDesktop && (
+          <span className="demo-badge">
+            Web Demo (file open/save available in desktop app)
+          </span>
+        )}
+      </div>
 
       <div className="main-layout">
         <aside className="sidebar">
