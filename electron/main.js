@@ -7,11 +7,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = !!process.env.ELECTRON_START_URL;
-
+let mainWindow = null;
 let currentFilePath = null;
 
 function createWindow() {
-  const win = new BrowserWindow({
+  console.log('[main] creating window');
+  console.log('[main] __dirname =', __dirname);
+
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1000,
@@ -20,13 +23,20 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false
     },
   });
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[main] window finished load');
+  });
+
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   if (isDev && process.env.ELECTRON_START_URL) {
-    win.loadURL(process.env.ELECTRON_START_URL);
+    mainWindow.loadURL(process.env.ELECTRON_START_URL);
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
 
@@ -42,12 +52,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-//
-// FILE HANDLING
-//
+ipcMain.handle('dialog:openFile', async () => {
+  console.log('[main] dialog:openFile called');
 
-ipcMain.handle('open-file', async () => {
-  const result = await dialog.showOpenDialog({
+  const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [
       { name: 'Markdown', extensions: ['md'] },
@@ -56,29 +64,45 @@ ipcMain.handle('open-file', async () => {
     ],
   });
 
+  console.log('[main] open dialog result:', result);
+
   if (result.canceled || result.filePaths.length === 0) {
     return null;
   }
 
   const filePath = result.filePaths[0];
   const content = await fs.readFile(filePath, 'utf-8');
-
   currentFilePath = filePath;
 
   return { filePath, content };
 });
 
-ipcMain.handle('save-file', async (_, content) => {
+ipcMain.handle('dialog:saveFile', async (_, content) => {
+  console.log('[main] dialog:saveFile called');
+
   if (!currentFilePath) {
-    return ipcMain.emit('save-file-as', content);
+    const result = await dialog.showSaveDialog(mainWindow, {
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: 'YAML', extensions: ['yml', 'yaml'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    currentFilePath = result.filePath;
   }
 
   await fs.writeFile(currentFilePath, content, 'utf-8');
   return { filePath: currentFilePath };
 });
 
-ipcMain.handle('save-file-as', async (_, content) => {
-  const result = await dialog.showSaveDialog({
+ipcMain.handle('dialog:saveFileAs', async (_, content) => {
+  console.log('[main] dialog:saveFileAs called');
+
+  const result = await dialog.showSaveDialog(mainWindow, {
     filters: [
       { name: 'Markdown', extensions: ['md'] },
       { name: 'YAML', extensions: ['yml', 'yaml'] },
@@ -90,7 +114,6 @@ ipcMain.handle('save-file-as', async (_, content) => {
   }
 
   await fs.writeFile(result.filePath, content, 'utf-8');
-
   currentFilePath = result.filePath;
 
   return { filePath: result.filePath };

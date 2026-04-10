@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
@@ -19,7 +19,16 @@ A desktop app for writing and previewing GitHub files.
 - [x] Shell working
 - [x] Monaco editor
 - [x] YAML validation
-- [ ] File open/save
+- [x] File open/save
+- [ ] Multiple tabs
+- [ ] Visual issue form builder
+
+### Table
+
+| File Type | Supported |
+|-----------|-----------|
+| Markdown  | Yes       |
+| YAML      | Yes       |
 
 ### Code block
 
@@ -37,7 +46,14 @@ description: File a bug report
 title: "[Bug]: "
 labels:
   - bug
+assignees:
+  - monapdx
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report.
+
   - type: textarea
     id: summary
     attributes:
@@ -46,6 +62,32 @@ body:
       placeholder: Tell us what broke
     validations:
       required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version are you using?
+      placeholder: v1.0.0
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      description: Which browser were you using?
+      options:
+        - Chrome
+        - Firefox
+        - Edge
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting
+      description: Please confirm the following
+      options:
+        - label: I searched existing issues
+        - label: I can reproduce this issue
 `;
 
 type Mode = 'markdown' | 'yaml';
@@ -55,6 +97,12 @@ export default function App() {
   const [content, setContent] = useState(initialMarkdown);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [status, setStatus] = useState('Ready');
+
+  useEffect(() => {
+    if (!window.api) {
+      setStatus('Electron bridge missing');
+    }
+  }, []);
 
   const md = useMemo(() => {
     return new MarkdownIt({
@@ -118,18 +166,105 @@ export default function App() {
     setStatus(`Switched to ${nextMode}`);
   }
 
-  async function handleNew() {
-    const nextContent = getInitialContent(mode);
+  function loadTemplate(template: 'readme' | 'contributing' | 'issue' | 'workflow') {
+    if (template === 'readme') {
+      setMode('markdown');
+      setFilePath(null);
+      setContent(`# Project Name
+
+A short description of what this repo does.
+
+## Features
+
+- Feature one
+- Feature two
+- Feature three
+
+## Installation
+
+\`\`\`bash
+npm install
+\`\`\`
+
+## Usage
+
+Describe how to use the project.
+
+## License
+
+MIT
+`);
+      setStatus('Loaded README template');
+      return;
+    }
+
+    if (template === 'contributing') {
+      setMode('markdown');
+      setFilePath(null);
+      setContent(`# Contributing
+
+Thanks for your interest in contributing.
+
+## How to contribute
+
+1. Fork the repo
+2. Create a branch
+3. Make your changes
+4. Open a pull request
+
+## Guidelines
+
+- Keep changes focused
+- Write clear commit messages
+- Be respectful
+`);
+      setStatus('Loaded CONTRIBUTING template');
+      return;
+    }
+
+    if (template === 'issue') {
+      setMode('yaml');
+      setFilePath(null);
+      setContent(initialYaml);
+      setStatus('Loaded issue form template');
+      return;
+    }
+
+    setMode('yaml');
     setFilePath(null);
-    setContent(nextContent);
+    setContent(`name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
+`);
+    setStatus('Loaded workflow template');
+  }
+
+  async function handleNew() {
+    setFilePath(null);
+    setContent(getInitialContent(mode));
     setStatus(`Started new ${mode === 'markdown' ? 'Markdown' : 'YAML'} file`);
   }
 
   async function handleOpen() {
     try {
+      setStatus('Opening...');
+
       if (!window.api?.openFile) {
-        setStatus('Electron API bridge is missing');
-        console.error('window.api.openFile is not available');
+        setStatus('window.api.openFile missing');
         return;
       }
 
@@ -157,25 +292,28 @@ export default function App() {
   async function handleSave() {
     try {
       if (!window.api?.saveFile || !window.api?.saveFileAs) {
-        setStatus('Electron API bridge is missing');
-        console.error('window.api save methods are not available');
+        setStatus('window.api save methods missing');
         return;
       }
 
       if (!filePath) {
         const result = await window.api.saveFileAs(content);
+
         if (!result) {
           setStatus('Save canceled');
           return;
         }
+
         setFilePath(result.filePath);
         setStatus(`Saved ${result.filePath.split(/[/\\\\]/).pop()}`);
       } else {
         const result = await window.api.saveFile(content);
+
         if (!result) {
           setStatus('Save failed');
           return;
         }
+
         setFilePath(result.filePath);
         setStatus(`Saved ${result.filePath.split(/[/\\\\]/).pop()}`);
       }
@@ -192,7 +330,10 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">{displayName}</div>
+        <div className="brand-wrap">
+          <div className="brand-title">GitHub Markdown Studio</div>
+          <div className="brand-file">{displayName}</div>
+        </div>
 
         <div className="topbar-actions">
           <button onClick={() => switchMode('markdown')}>Markdown</button>
@@ -212,7 +353,7 @@ export default function App() {
             <li>
               <button
                 className="sidebar-button"
-                onClick={() => switchMode('markdown')}
+                onClick={() => loadTemplate('readme')}
               >
                 README.md
               </button>
@@ -220,7 +361,7 @@ export default function App() {
             <li>
               <button
                 className="sidebar-button"
-                onClick={() => switchMode('markdown')}
+                onClick={() => loadTemplate('contributing')}
               >
                 CONTRIBUTING.md
               </button>
@@ -228,7 +369,7 @@ export default function App() {
             <li>
               <button
                 className="sidebar-button"
-                onClick={() => switchMode('yaml')}
+                onClick={() => loadTemplate('issue')}
               >
                 Issue Form
               </button>
@@ -236,7 +377,7 @@ export default function App() {
             <li>
               <button
                 className="sidebar-button"
-                onClick={() => switchMode('yaml')}
+                onClick={() => loadTemplate('workflow')}
               >
                 Workflow
               </button>
@@ -313,6 +454,19 @@ function renderIssueForm(form: any) {
       <h2>${mdEscape(form.name ?? 'Issue Form')}</h2>
       <p class="form-description">${mdEscape(form.description ?? '')}</p>
 
+      <div class="form-meta">
+        ${
+          Array.isArray(form.labels) && form.labels.length
+            ? `<div><strong>Labels:</strong> ${form.labels.map((label: string) => mdEscape(label)).join(', ')}</div>`
+            : ''
+        }
+        ${
+          Array.isArray(form.assignees) && form.assignees.length
+            ? `<div><strong>Assignees:</strong> ${form.assignees.map((name: string) => mdEscape(name)).join(', ')}</div>`
+            : ''
+        }
+      </div>
+
       <div class="form-fields">
         ${fields.map(renderField).join('')}
       </div>
@@ -328,12 +482,13 @@ function renderField(field: any) {
   const label = field.attributes?.label ?? 'Field';
   const description = field.attributes?.description ?? '';
   const placeholder = field.attributes?.placeholder ?? '';
+  const required = field.validations?.required ? ' <span class="required">*</span>' : '';
 
   switch (field.type) {
     case 'input':
       return `
         <div class="form-group">
-          <label>${mdEscape(label)}</label>
+          <label>${mdEscape(label)}${required}</label>
           <input placeholder="${mdEscape(placeholder)}" disabled />
           <small>${mdEscape(description)}</small>
         </div>
@@ -342,7 +497,7 @@ function renderField(field: any) {
     case 'textarea':
       return `
         <div class="form-group">
-          <label>${mdEscape(label)}</label>
+          <label>${mdEscape(label)}${required}</label>
           <textarea placeholder="${mdEscape(placeholder)}" disabled></textarea>
           <small>${mdEscape(description)}</small>
         </div>
@@ -351,7 +506,7 @@ function renderField(field: any) {
     case 'dropdown':
       return `
         <div class="form-group">
-          <label>${mdEscape(label)}</label>
+          <label>${mdEscape(label)}${required}</label>
           <select disabled>
             ${(field.attributes?.options ?? [])
               .map(
@@ -369,7 +524,7 @@ function renderField(field: any) {
     case 'checkboxes':
       return `
         <div class="form-group">
-          <label>${mdEscape(label)}</label>
+          <label>${mdEscape(label)}${required}</label>
           <div class="checkbox-group">
             ${(field.attributes?.options ?? [])
               .map(
