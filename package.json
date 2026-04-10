@@ -1,0 +1,57 @@
+{
+  "name": "github-markdown-studio",
+  "version": "0.1.0",
+  "description": "Windows desktop editor for GitHub Markdown and YAML forms",
+  "main": "electron/main.js",
+  "type": "module",
+  "author": "",
+  "license": "MIT",
+
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
+    "build": "vite build",
+    "start": "cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
+    "dist": "npm run build && electron-builder"
+  },
+
+  "build": {
+    "appId": "com.github.markdownstudio",
+    "productName": "GitHub Markdown Studio",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "highlight.js": "^11.11.1",
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.0",
+    "monaco-editor": "^0.52.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^36.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "wait-on": "^8.0.3"
+  }
+}
