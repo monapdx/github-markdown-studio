@@ -379,3 +379,12 @@ h2 {
     border-top: 1px solid #30363d;
   }
 }
+
+.demo-badge {
+  margin-left: 12px;
+  font-size: 0.8rem;
+  color: #ffa657;
+  border: 1px solid #ffa657;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
