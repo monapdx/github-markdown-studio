@@ -2,7 +2,7 @@
 
 A desktop app for writing, editing, and previewing GitHub Markdown and YAML files — built specifically for creating clean, polished repos.
 
-<img src="https://raw.githubusercontent.com/monapdx/github-markdown-studio/refs/heads/main/ChatGPT%20Image%20Apr%2010%2C%202026%2C%2002_05_54%20AM.png">
+
 ---
 
 ## ✨ Overview
